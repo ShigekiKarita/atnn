@@ -47,6 +47,8 @@ struct Add : atnn::Module<Add> {
 
 
 auto allclose(at::Tensor actual, at::Tensor desired, float rtol=1e-7, float atol=0) {
+    assert(!atnn::is_empty(actual));
+    assert(!atnn::is_empty(desired));
     return ((actual - desired).abs() <= desired.abs() * rtol + atol).all();
 }
 
@@ -80,6 +82,8 @@ int main() {
         assert(allclose(v2.grad(), d));
         assert(allclose(v1.grad(), d));
         assert(allclose(v0.grad(), d * (2 * v0.data() + 1), 1e-6));
+
+        // TODO: test w/o clear grads
     }
 
     {
