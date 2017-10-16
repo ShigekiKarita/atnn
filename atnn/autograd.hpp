@@ -11,21 +11,7 @@
 namespace atnn {
 
     struct Variable;
-    using VariablePtr = std::shared_ptr<Variable>;
-
-    // struct VariablePtr {
-    //     std::shared_ptr<Variable> ptr;
-
-    //     VariablePtr(at::Tensor data) {
-    //         this->ptr = std::make_shared<Variable>(data);
-    //     }
-
-    //     auto operator->() {
-    //         return ptr;
-    //     }
-    // };
-
-    using VList = std::vector<VariablePtr>;
+    using VList = std::vector<Variable>;
     using TList = std::vector<at::Tensor>;
 
 
@@ -40,65 +26,82 @@ namespace atnn {
         return !t.defined() || t.dim() == 0;
     }
 
-
-    struct Variable {
+    struct VariableImpl {
         at::Tensor data, grad;
         ModulePtr module;
         bool train = true;
 
-        Variable(at::Tensor t, bool train=true) : data(t), train(train) {}
+        VariableImpl(at::Tensor t, bool train=true) : data(t), train(train) {}
+    };
 
-        bool is_leaf() const { return this->module == nullptr; }
+    struct Variable {
+        std::shared_ptr<VariableImpl> ptr;
+        Variable(at::Tensor data) {
+            this->ptr = std::make_shared<VariableImpl>(data);
+        }
 
-        auto& children() { return this->module->vargs; }
+        auto data() const {
+            return this->ptr->data;
+        }
+
+        auto grad() const {
+            return this->ptr->grad;
+        }
+
+        auto train() const {
+            return this->ptr->train;
+        }
 
         void clear_grads() {
-            this->grad = at::Tensor();
+            this->ptr->grad = at::Tensor();
             if (!this->is_leaf()) {
                 for (auto& v: this->children()) {
-                    v->clear_grads();
+                    v.clear_grads();
                 }
             }
         }
 
+        void set_module(ModulePtr m) {
+            this->ptr->module = m;
+        }
+
+        bool is_leaf() const { return this->ptr->module == nullptr; }
+
+        VList& children() { return this->ptr->module->vargs; }
+
+        VList& brothers() { return this->ptr->module->vrets; }
+
         auto backward(at::Tensor grad) {
-            if (is_empty(this->grad)) {
-                this->grad = grad.clone();
+            if (is_empty(this->ptr->grad)) {
+                this->ptr->grad = grad.clone();
             } else {
-                this->grad += grad;
+                this->ptr->grad += grad;
             }
             if (this->is_leaf()) return;
 
-            VList& brothers = this->module->vrets;
-            for (auto&& b: brothers) {
-                if (is_empty(b->grad)) return;
+            for (auto&& b: this->brothers()) {
+                if (is_empty(b.grad())) return;
             }
 
             TList accumulated_grads;
-            accumulated_grads.reserve(brothers.size());
-            for (auto&& b: brothers) {
-                accumulated_grads.push_back(b->grad);
+            accumulated_grads.reserve(this->brothers().size());
+            for (auto&& b: this->brothers()) {
+                accumulated_grads.push_back(b.grad());
             }
 
-            TList next_grads = this->module->backward(accumulated_grads);
+            TList next_grads = this->ptr->module->backward(accumulated_grads);
             assert(next_grads.size() == this->children().size());
             for (size_t i = 0; i < next_grads.size(); ++i) {
-                this->children()[i]->backward(next_grads[i]);
+                this->children()[i].backward(next_grads[i]);
             }
         }
     };
 
+
     std::ostream& operator<<(std::ostream &strm, const Variable &v) {
         return strm << "Variable(\n"
-                    << "data=\n" << v.data
-                    << "\ngrad=\n" << v.grad
-                    << "\n)";
-    }
-
-    std::ostream& operator<<(std::ostream &strm, const VariablePtr &v) {
-        return strm << "VariablePtr(\n"
-                    << "data=\n" << v->data
-                    << "\ngrad=\n" << v->grad
+                    << "data=\n" << v.data()
+                    << "\ngrad=\n" << v.grad()
                     << "\n)";
     }
 
@@ -115,14 +118,14 @@ namespace atnn {
         template <class T>
         auto set_vargs(T&& t) { return t; }
 
-        auto set_vargs(VariablePtr v) {
+        auto set_vargs(Variable v) {
             this->vargs.push_back(v);
-            return v->data;
+            return v.data();
         }
 
         auto set_vrets(at::Tensor t) {
-            auto v = std::make_shared<Variable>(t);
-            v->module = shared_from_this();
+            auto v = Variable(t);
+            v.set_module(shared_from_this());
             this->vrets.clear();
             this->vrets.push_back(v);
             return v;
@@ -133,7 +136,7 @@ namespace atnn {
             this->vrets.reserve(ts.size());
             for (auto&& t: ts) {
                 auto v = Variable(t);
-                v.module = shared_from_this();
+                v.set_module(shared_from_this());
                 this->vrets.push_back(v);
             }
             return this->vrets;
@@ -157,7 +160,7 @@ namespace atnn {
         void save_for_backward(TList tensors){
             bool train = true;
             for (auto&& v: this->vargs) {
-                train &= v->train;
+                train &= v.train();
                 if (!train) return;
             }
             this->saved_tensors = tensors;

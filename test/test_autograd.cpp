@@ -56,43 +56,41 @@ int main() {
         at::Tensor d = CUDA(at::kFloat).rand({3, 4});
         auto d_clone = d.clone();
 
-        auto v0 = std::make_shared<atnn::Variable>(d * 3);
+        auto v0 = atnn::Variable(d * 3);
         auto func = std::make_shared<Pow>(2);
         auto v1 = func->forward(v0);
-        assert(allclose(v1->data, v0->data.pow(2)));
-        v1->backward(v1->data/2);
+        assert(allclose(v1.data(), v0.data().pow(2)));
+        v1.backward(v1.data() /2);
 
         assert(allclose(d, d_clone)); // check unchanged
-        assert(allclose(v1->grad, v1->data/2));
-        assert(allclose(v0->grad, v1->grad * v0->data * 2));
-        auto prev_g1 = v1->grad.clone();
-        auto prev_g0 = v0->grad.clone();
+        assert(allclose(v1.grad(), v1.data()/2));
+        assert(allclose(v0.grad(), v1.grad() * v0.data() * 2));
+        auto prev_g1 = v1.grad().clone();
+        auto prev_g0 = v0.grad().clone();
 
         auto add = std::make_shared<Add>();
         auto v2 = add->forward(v0, v1); // v2 = v0 + (v0 * v0) -> dv2/dv0 = 1 + 2 * v0
 
-        v2->clear_grads();
-        assert(atnn::is_empty(v0->grad));
-        assert(atnn::is_empty(v1->grad));
+        v2.clear_grads();
+        assert(atnn::is_empty(v0.grad()));
+        assert(atnn::is_empty(v1.grad()));
 
-        v2->backward(d);
+        v2.backward(d);
         assert(allclose(d, d_clone)); // check unchanged
-        assert(allclose(v2->grad, d));
-        assert(allclose(v1->grad, d));
-        assert(allclose(v0->grad, d * (2 * v0->data + 1), 1e-6));
-
-        // TODO: test w/o clear grads
+        assert(allclose(v2.grad(), d));
+        assert(allclose(v1.grad(), d));
+        assert(allclose(v0.grad(), d * (2 * v0.data() + 1), 1e-6));
     }
 
     {
         at::Tensor d = CUDA(at::kFloat).ones({3, 4});
-        auto v0 = std::make_shared<atnn::Variable>(d * 3);
-        auto v1 = std::make_shared<atnn::Variable>(d * 2);
+        auto v0 = atnn::Variable(d * 3);
+        auto v1 = atnn::Variable(d * 2);
         auto add = std::make_shared<Add>();
         auto v2 = add->forward(v0, v1);
-        assert(allclose(v2->data, d * 5));
-        v2->backward(d);
-        assert(allclose(v0->grad, d));
-        assert(allclose(v1->grad, d));
+        assert(allclose(v2.data(), d * 5));
+        v2.backward(d);
+        assert(allclose(v0.grad(), d));
+        assert(allclose(v1.grad(), d));
     }
 }
