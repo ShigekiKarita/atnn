@@ -102,6 +102,10 @@ namespace atnn {
                 this->children()[i].backward(next_grads[i]);
             }
         }
+
+        auto backward() {
+            
+        }
     };
 
 
@@ -112,7 +116,8 @@ namespace atnn {
                     << "\n)";
     }
 
-    static void to_backend_of(at::Tensor& src, const at::Tensor& dst) {
+    template <typename T1, typename T2>
+    static void to_backend_of(T1& src, const T2& dst) {
         const auto src_backend = src.type().backend();
         const auto dst_backend = dst.type().backend();
         if (src_backend != dst_backend) {
@@ -120,7 +125,8 @@ namespace atnn {
         }
     }
 
-    static void to_backend_of(at::Tensor& src, at::Backend b) {
+    template <typename T>
+    static void to_backend_of(T& src, at::Backend b) {
         const auto src_backend = src.type().backend();
         if (src_backend != b) {
             src = src.toBackend(b);

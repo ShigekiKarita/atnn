@@ -1,11 +1,20 @@
 INCPATH := -I$(ATEN_ROOT)/include -I..
 LIBPATH := -L$(ATEN_ROOT)/lib
-LIBS := -ldl -lboost_stacktrace_addr2line  -lATen -lTH -lTHC -lTHS -lTHCS -lTHNN -lTHCUNN
+LIBS := -lATen -lTH -lTHC -lTHS -lTHCS -lTHNN -lTHCUNN
+CXX_FLAGS := -std=c++14 -g -Wall -Wextra
+
+ifdef USE_BOOST
+BOOST_LIB := -ldl -lboost_stacktrace_addr2line
+BOOST_FLAGS := -DBOOST_STACKTRACE_USE_ADDR2LINE -DBOOST_ENABLE_ASSERT_DEBUG_HANDLER -DHAVE_BOOST
+else
+BOOST_LIB :=
+BOOST_FLAGS :=
+endif
 
 .PHONY: test clean
 
 %.out: %.cpp
-	g++ -DBOOST_STACKTRACE_USE_ADDR2LINE -DBOOST_ENABLE_ASSERT_DEBUG_HANDLER -o $@ $< -std=c++14 -g $(INCPATH) $(LIBPATH) $(LIBS)
+	g++ -o $@ $< $(CXX_FLAGS) $(BOOST_FLAGS) $(INCPATH) $(LIBPATH) $(LIBS) $(BOOST_LIB)
 
 test: test_autograd.out test_nn.out
 	find . -name "*.out" -exec {} \;

@@ -1,10 +1,7 @@
 #define _GLIBCXX_DEBUG
 #define DEBUG
 
-#include <assert.h>
-#include <iostream>
 #include <ATen/Functions.h>
-
 #include <atnn/atnn.hpp>
 
 /* TODO: support higher order modules
@@ -23,8 +20,9 @@ struct Net : atnn::Module<Net> {
 }
 */
 
-int main() {
-    for (auto device: {at::CPU, at::CUDA}){
+
+int main(int argc, char** argv) {
+    atnn::test_common(argc, argv, [](auto device) {
         at::Tensor t = device(at::kFloat).randn({3, 4, 5, 6});
         atnn::Variable x(t);
         auto conv2d = std::make_shared<atnn::modules::Conv2d>(4, 2);
@@ -43,5 +41,5 @@ int main() {
         z.backward(gz);
         assert(atnn::allclose(z.grad(), gz));
         assert(atnn::shape_is(x.grad(), x.sizes()));
-    }
+    });
 }

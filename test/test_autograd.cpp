@@ -31,14 +31,12 @@ struct Pow : atnn::Module<Pow> {
 struct Add : atnn::Module<Add> {
     using Function = struct {
         template <typename Context>
-        static auto forward(Context ctx, atnn::TList x) {
-            ctx->save_for_backward(x);
+        static auto forward(Context, atnn::TList x) {
             return x[0] + x[1];
         }
 
         template <typename Context>
-        static atnn::TList backward(Context ctx, atnn::TList gy) {
-            auto&& _x = ctx->saved_tensors[0];
+        static atnn::TList backward(Context, atnn::TList gy) {
             return {gy[0], gy[0]};
         }
     };
@@ -46,8 +44,8 @@ struct Add : atnn::Module<Add> {
 
 
 
-int main() {
-    for (auto device : {at::CPU, at::CUDA})
+int main(int argc, char** argv) {
+    atnn::test_common(argc, argv, [](auto device) {
     {
         at::Tensor d = device(at::kFloat).rand({3, 4});
         auto d_clone = d.clone();
@@ -92,4 +90,5 @@ int main() {
         assert(atnn::allclose(v0.grad(), d));
         assert(atnn::allclose(v1.grad(), d));
     }
+    });
 }

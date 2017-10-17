@@ -1,10 +1,13 @@
 #pragma once
 #include <ATen/ATen.h>
+#include <iostream>
+#include <chrono>
 
+
+#ifdef HAVE_BOOST // a BOOST dependent part
+// BOOST_ENABLE_ASSERT_DEBUG_HANDLER is defined for the whole project
+#include <boost/stacktrace.hpp>
 #include <boost/format.hpp>
-#include <boost/stacktrace.hpp> // BOOST_ENABLE_ASSERT_DEBUG_HANDLER is defined for the whole project
-
-#include <iostream>     // std::cerr
 
 
 namespace boost {
@@ -24,13 +27,37 @@ namespace boost {
     }
 } // namespace boost
 
+namespace atnn {
+    typedef boost::error_info<struct tag_stacktrace, boost::stacktrace::stacktrace> traced;
+    template <class E>
+    void throw_with_trace(const E& e) {
+        throw boost::enable_error_info(e)
+            << traced(boost::stacktrace::stacktrace());
+    }
+}
 
 #define ATNN_ASSERT BOOST_ASSERT
 #define ATNN_ASSERT_MSG BOOST_ASSERT_MSG
 #define ATNN_ASSERT_EQ(a, b) do { BOOST_ASSERT_MSG((a) == (b), (boost::format("%d != %d") % (a) % (b)).str().c_str()); } while (0)
 #define ATNN_ASSERT_SHAPE_EQ(a, b) do { \
-        BOOST_ASSERT_MSG(atnn::shape_eq((a), (b)),                      \
+        ATNN_ASSERT_MSG(atnn::shape_eq((a), (b)),                      \
                          (boost::format("%1 != %2") % atnn::to_tensor(a) % atnn::to_tensor(b)).str().c_str()); } while (0)
+
+#else // not HAVE_BOOST
+
+#define ATNN_ASSERT assert
+#define ATNN_ASSERT_MSG(expr, msg) do { assert((expr) && (msg)); } while(0)
+#define ATNN_ASSERT_EQ(a, b) do { ATNN_ASSERT((a) == (b)); } while (0)
+#define ATNN_ASSERT_SHAPE_EQ(a, b) do { ATNN_ASSERT(atnn::shape_eq((a), (b))); } while (0)
+
+namespace atnn {
+    template <class E>
+    void throw_with_trace(const E& e) {
+        throw e;
+    }
+}
+
+#endif
 
 
 namespace atnn {
@@ -67,12 +94,20 @@ namespace atnn {
         return ok;
     }
 
-    typedef boost::error_info<struct tag_stacktrace, boost::stacktrace::stacktrace> traced;
-
-    template <class E>
-    void throw_with_trace(const E& e) {
-        throw boost::enable_error_info(e)
-            << traced(boost::stacktrace::stacktrace());
+    template <typename F>
+    void test_common(int argc [[gnu::unused]], char** argv, F proc, bool cpu_only=false) {
+        std::cout << argv[0] << std::flush;
+        for (auto device: {at::CPU, at::CUDA}){
+            if (cpu_only && device == at::CPU) continue;
+            auto start_time = std::chrono::high_resolution_clock::now();
+            proc(device);
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto elapsed = 1e-9 * std::chrono::duration_cast<std::chrono::nanoseconds>(
+                end_time - start_time).count();
+            std::cout << ", "<< at::toString(device(at::kFloat).backend())
+                      << ": " << elapsed << " sec" << std::flush;
+        }
+        std::cout << std::endl;
     }
 
-}
+} // namespace atnn
