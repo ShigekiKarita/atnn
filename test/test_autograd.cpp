@@ -3,9 +3,8 @@
 
 #include <atnn/atnn.hpp>
 
-
 // you can define your own module's impl outside of it.
-struct PowImpl {
+struct PowFunction {
     // you cannot create non-static members. use ctx for storing dynamic members
     template <typename Context>
     static auto forward(Context ctx, atnn::TList x) {
@@ -22,7 +21,7 @@ struct PowImpl {
 
 
 struct Pow : atnn::Module<Pow> {
-    using Impl = struct PowImpl;
+    using Function = struct PowFunction;
     double n = 2;
     Pow(double n) : n(n) {}
 };
@@ -30,7 +29,7 @@ struct Pow : atnn::Module<Pow> {
 
 // or inline impl style
 struct Add : atnn::Module<Add> {
-    using Impl = struct {
+    using Function = struct {
         template <typename Context>
         static auto forward(Context ctx, atnn::TList x) {
             ctx->save_for_backward(x);
@@ -46,27 +45,22 @@ struct Add : atnn::Module<Add> {
 };
 
 
-auto allclose(at::Tensor actual, at::Tensor desired, float rtol=1e-7, float atol=0) {
-    assert(!atnn::is_empty(actual));
-    assert(!atnn::is_empty(desired));
-    return ((actual - desired).abs() <= desired.abs() * rtol + atol).all();
-}
-
 
 int main() {
+    for (auto device : {at::CPU, at::CUDA})
     {
-        at::Tensor d = CUDA(at::kFloat).rand({3, 4});
+        at::Tensor d = device(at::kFloat).rand({3, 4});
         auto d_clone = d.clone();
 
         auto v0 = atnn::Variable(d * 3);
         auto func = std::make_shared<Pow>(2);
         auto v1 = func->forward(v0);
-        assert(allclose(v1.data(), v0.data().pow(2)));
+        assert(atnn::allclose(v1.data(), v0.data().pow(2)));
         v1.backward(v1.data() /2);
 
-        assert(allclose(d, d_clone)); // check unchanged
-        assert(allclose(v1.grad(), v1.data()/2));
-        assert(allclose(v0.grad(), v1.grad() * v0.data() * 2));
+        assert(atnn::allclose(d, d_clone)); // check unchanged
+        assert(atnn::allclose(v1.grad(), v1.data()/2));
+        assert(atnn::allclose(v0.grad(), v1.grad() * v0.data() * 2));
         auto prev_g1 = v1.grad().clone();
         auto prev_g0 = v0.grad().clone();
 
@@ -78,23 +72,24 @@ int main() {
         assert(atnn::is_empty(v1.grad()));
 
         v2.backward(d);
-        assert(allclose(d, d_clone)); // check unchanged
-        assert(allclose(v2.grad(), d));
-        assert(allclose(v1.grad(), d));
-        assert(allclose(v0.grad(), d * (2 * v0.data() + 1), 1e-6));
+        assert(atnn::allclose(d, d_clone)); // check unchanged
+        assert(atnn::allclose(v2.grad(), d));
+        assert(atnn::allclose(v1.grad(), d));
+        assert(atnn::allclose(v0.grad(), d * (2 * v0.data() + 1), 1e-6));
 
         // TODO: test w/o clear grads
     }
 
+    for (auto device : {at::CPU, at::CUDA})
     {
-        at::Tensor d = CUDA(at::kFloat).ones({3, 4});
+        at::Tensor d = device(at::kFloat).ones({3, 4});
         auto v0 = atnn::Variable(d * 3);
         auto v1 = atnn::Variable(d * 2);
         auto add = std::make_shared<Add>();
         auto v2 = add->forward(v0, v1);
-        assert(allclose(v2.data(), d * 5));
+        assert(atnn::allclose(v2.data(), d * 5));
         v2.backward(d);
-        assert(allclose(v0.grad(), d));
-        assert(allclose(v1.grad(), d));
+        assert(atnn::allclose(v0.grad(), d));
+        assert(atnn::allclose(v1.grad(), d));
     }
 }

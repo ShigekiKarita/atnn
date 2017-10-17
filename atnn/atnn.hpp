@@ -11,3 +11,5 @@
 #pragma once
 
 #include "autograd.hpp"
+#include "testing.hpp"
+#include "modules.hpp"

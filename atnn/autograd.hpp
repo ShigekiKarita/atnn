@@ -6,20 +6,21 @@
 #include <iostream>
 
 #include <ATen/ATen.h>
+#include <boost/assert.hpp>
+#include <boost/format.hpp>
 
+#include "testing.hpp"
 
 namespace atnn {
-    bool is_empty(at::Tensor t) {
-        return !t.defined() || t.dim() == 0;
-    }
-
     struct Variable;
     using VList = std::vector<Variable>;
     using TList = std::vector<at::Tensor>;
 
     struct ModuleBase : std::enable_shared_from_this<ModuleBase> {
+        TList saved_tensors;
         VList vargs, vrets;
         virtual TList backward(TList grads) = 0;
+        virtual void toBackend(at::Backend b) = 0;
     };
 
     struct VariableImpl {
@@ -31,6 +32,10 @@ namespace atnn {
     struct Variable {
         std::shared_ptr<VariableImpl> ptr;
         std::shared_ptr<ModuleBase> module;
+        Variable() {
+            this->ptr = std::make_shared<VariableImpl>(at::Tensor{}, true);
+        }
+
         Variable(at::Tensor data, bool train=true) {
             this->ptr = std::make_shared<VariableImpl>(data, train);
         }
@@ -45,6 +50,10 @@ namespace atnn {
 
         auto train() const {
             return this->ptr->train;
+        }
+
+        auto sizes() const {
+            return this->ptr->data.sizes();
         }
 
         void clear_grads() {
@@ -68,6 +77,7 @@ namespace atnn {
         VList& brothers() { return this->module->vrets; }
 
         auto backward(at::Tensor grad) {
+            ATNN_ASSERT_SHAPE_EQ(this->sizes(), grad.sizes());
             if (is_empty(this->ptr->grad)) {
                 this->ptr->grad = grad.clone();
             } else {
@@ -87,7 +97,7 @@ namespace atnn {
             }
 
             TList next_grads = this->module->backward(accumulated_grads);
-            assert(next_grads.size() == this->children().size());
+            ATNN_ASSERT_EQ(next_grads.size(), this->children().size());
             for (size_t i = 0; i < next_grads.size(); ++i) {
                 this->children()[i].backward(next_grads[i]);
             }
@@ -102,14 +112,30 @@ namespace atnn {
                     << "\n)";
     }
 
+    static void to_backend_of(at::Tensor& src, const at::Tensor& dst) {
+        const auto src_backend = src.type().backend();
+        const auto dst_backend = dst.type().backend();
+        if (src_backend != dst_backend) {
+            src = src.toBackend(dst_backend);
+        }
+    }
+
+    static void to_backend_of(at::Tensor& src, at::Backend b) {
+        const auto src_backend = src.type().backend();
+        if (src_backend != b) {
+            src = src.toBackend(b);
+        }
+    }
 
 /**
    Module stores Parameters and Variables
-   for Derived::Impl (static class with forward/backward functions)
+   for Derived::Function (static class with forward/backward functions)
 */
     template <class Derived>
     struct Module : ModuleBase {
-        TList saved_tensors;
+        VList parameters;
+        std::vector<std::shared_ptr<ModuleBase>> submodules;
+
         Derived* dthis = static_cast<Derived*>(this);
 
         virtual ~Module() {}
@@ -143,11 +169,11 @@ namespace atnn {
             // TODO: make this struct Edge { VList vargs, vrets; }
             this->vargs.clear();
             this->vrets.clear();
-            return set_vrets(Derived::Impl::forward(dthis, {this->set_vargs(args)...}));
+            return set_vrets(Derived::Function::forward(dthis, {this->set_vargs(args)...}));
         }
 
-        virtual TList backward(TList grads) {
-            return Derived::Impl::backward(dthis, grads);
+        TList backward(TList grads) override {
+            return Derived::Function::backward(dthis, grads);
         }
 
         template <class ... Args>
@@ -162,6 +188,21 @@ namespace atnn {
                 if (!train) return;
             }
             this->saved_tensors = tensors;
+        }
+
+        void toBackend(at::Backend b) override {
+            for (auto& p: this->parameters) {
+                p.ptr->data = p.data().toBackend(b);
+                if (!is_empty(p.grad())) {
+                    p.ptr->grad = p.grad().toBackend(b);
+                }
+            }
+            for (auto& t: this->saved_tensors) {
+                t = t.toBackend(b);
+            }
+            for (auto& m: this->submodules) {
+                m->toBackend(b);
+            }
         }
     };
 
