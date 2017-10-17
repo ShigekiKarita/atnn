@@ -10,6 +10,35 @@ namespace atnn {
 
     namespace modules {
 
+        struct Threshold : atnn::Module<Threshold> {
+            using Function = struct {
+                template <typename Context>
+                static auto forward(Context ctx, atnn::TList xs) {
+                    ATNN_ASSERT_EQ(xs.size(), 1);
+                    ctx->save_for_backward(xs);
+                    return at::threshold_forward(xs[0], ctx->threshold, ctx->value, ctx->inplace);
+                }
+
+                template <typename Context>
+                static atnn::TList backward(Context ctx, atnn::TList gy) {
+                    ATNN_ASSERT_EQ(gy.size(), 1);
+                    auto x = ctx->saved_tensors[0];
+                    ATNN_ASSERT_SHAPE_EQ(gy[0].sizes(), x.sizes());
+                    return {at::threshold_backward(gy[0], x, ctx->threshold, ctx->value, ctx->inplace)};
+                }
+            };
+
+            at::Scalar threshold, value;
+            bool inplace;
+            Threshold(double threshold, double value, bool inplace=false)
+                : threshold(threshold), value(value), inplace(inplace)
+                {}
+        };
+
+        struct ReLU : Threshold {
+            explicit ReLU(bool inplace=false) : Threshold(0.0, 0.0, inplace) {}
+        };
+
         struct Conv2d : atnn::Module<Conv2d> {
             using Function = struct {
                 // static inline Tensor & conv2d_forward_out(
@@ -18,6 +47,7 @@ namespace atnn {
                 template <typename Context>
                 static auto forward(Context ctx, atnn::TList xs) {
                     ATNN_ASSERT_EQ(xs.size(), 1);
+                    ATNN_ASSERT_EQ(xs[0].dim(), 4);
                     ctx->save_for_backward(xs);
                     auto&& x = xs[0];
                     at::Tensor output = x.type().zeros_like(x);
@@ -34,6 +64,7 @@ namespace atnn {
                 template <typename Context>
                 static atnn::TList backward(Context ctx, atnn::TList gy) {
                     ATNN_ASSERT_EQ(gy.size(), 1);
+                    ATNN_ASSERT_EQ(gy[0].dim(), 4);
                     auto&& grad_output = gy[0];
                     auto&& x = ctx->saved_tensors[0];
                     auto grad_input = x.type().zeros_like(x);

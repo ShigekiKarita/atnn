@@ -1,8 +1,6 @@
 #pragma once
 #include <ATen/ATen.h>
 
-#include "ATen/dlpack.h"
-
 #include <boost/format.hpp>
 #include <boost/stacktrace.hpp> // BOOST_ENABLE_ASSERT_DEBUG_HANDLER is defined for the whole project
 

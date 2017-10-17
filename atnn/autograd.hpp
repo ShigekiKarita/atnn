@@ -6,8 +6,6 @@
 #include <iostream>
 
 #include <ATen/ATen.h>
-#include <boost/assert.hpp>
-#include <boost/format.hpp>
 
 #include "testing.hpp"
 
@@ -29,9 +27,11 @@ namespace atnn {
         VariableImpl(at::Tensor data, bool train) : data(data), train(train) {}
     };
 
+    using ModulePtr = std::shared_ptr<ModuleBase>;
+
     struct Variable {
         std::shared_ptr<VariableImpl> ptr;
-        std::shared_ptr<ModuleBase> module;
+        ModulePtr module;
         Variable() {
             this->ptr = std::make_shared<VariableImpl>(at::Tensor{}, true);
         }
@@ -65,7 +65,7 @@ namespace atnn {
             }
         }
 
-        auto& set_module(std::shared_ptr<ModuleBase> m) {
+        auto& set_module(ModulePtr m) {
             this->module = m;
             return *this;
         }
@@ -134,7 +134,7 @@ namespace atnn {
     template <class Derived>
     struct Module : ModuleBase {
         VList parameters;
-        std::vector<std::shared_ptr<ModuleBase>> submodules;
+        std::vector<ModulePtr> submodules;
 
         Derived* dthis = static_cast<Derived*>(this);
 
@@ -174,11 +174,6 @@ namespace atnn {
 
         TList backward(TList grads) override {
             return Derived::Function::backward(dthis, grads);
-        }
-
-        template <class ... Args>
-        auto operator()(Args ... args) {
-            return this->forward(args...);
         }
 
         void save_for_backward(TList tensors){
