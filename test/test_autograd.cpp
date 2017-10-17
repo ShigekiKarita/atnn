@@ -1,6 +1,3 @@
-#define _GLIBCXX_DEBUG
-#define DEBUG
-
 #include <atnn/atnn.hpp>
 
 // you can define your own module's impl outside of it.
@@ -19,13 +16,11 @@ struct PowFunction {
     }
 };
 
-
 struct Pow : atnn::Module<Pow> {
     using Function = struct PowFunction;
     double n = 2;
     Pow(double n) : n(n) {}
 };
-
 
 // or inline impl style
 struct Add : atnn::Module<Add> {
@@ -41,7 +36,6 @@ struct Add : atnn::Module<Add> {
         }
     };
 };
-
 
 
 int main(int argc, char** argv) {

@@ -1,38 +1,36 @@
-#define _GLIBCXX_DEBUG
-#define DEBUG
-
 #include <ATen/Functions.h>
 #include <atnn/atnn.hpp>
+#include <tuple>
 
-/* TODO: support higher order modules
-struct Net : atnn::Module<Net> {
-    atnn::ModulePtr conv2d = std::make_shared<atnn::modules::Conv2d>(4, 2, {3, 3});
-    atnn::ModulePtr relu = std::make_shared<atnn::modules::ReLU>();
+namespace M = atnn::modules;
+
+struct Net : atnn::ModuleSet {
+    std::shared_ptr<M::Conv2d> conv2d = std::make_shared<M::Conv2d>(4, 2);
+    std::shared_ptr<M::ReLU> relu = std::make_shared<M::ReLU>();
 
     Net() {
-        this->submodules = {conv2d, relu};
+        this->modules = {conv2d, relu};
     }
 
-    auto forward(Variable x) {
-        auto h = this->conv2d->forward(x);
-        return this->relu->forward(h);
+    auto operator()(atnn::Variable x) {
+        auto h = conv2d->forward(x);
+        return std::make_tuple(h, relu->forward(h));
     }
-}
-*/
+};
 
 
 int main(int argc, char** argv) {
     atnn::test_common(argc, argv, [](auto device) {
         at::Tensor t = device(at::kFloat).randn({3, 4, 5, 6});
         atnn::Variable x(t);
-        auto conv2d = std::make_shared<atnn::modules::Conv2d>(4, 2);
-        auto relu = std::make_shared<atnn::modules::ReLU>();
+
+        auto net = Net();
         if (device == at::CUDA) {
-            conv2d->toBackend(at::kCUDA);
+            net.toBackend(at::kCUDA);
         }
-        assert(atnn::shape_is(conv2d->weight, {2, 4, 3, 3}));
-        auto y = conv2d->forward(x);
-        auto z = relu->forward(y);
+
+        atnn::Variable y, z;
+        std::tie(y, z) = net(x);
         assert((z.data() >= 0.0).all());
         assert((z.data() * (z.data() != y.data()).toType(at::kFloat) == 0.0).all());
 

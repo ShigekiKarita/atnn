@@ -2,7 +2,33 @@
 
 computational graph library for [ATEN](https://github.com/zdevito/ATen)
 
-## installation
+## TODO
+
++ computational graph
+  + support RNN and multiple backwards
++ gradient check utility
+  + check Conv2d (in `test/test_nn.cpp`)
+  + check RNN
++ optimizers
+  + add `std::vector<Variable> Module<Impl>.parameters` to track trainable variables
+  + support double backward?
++ serialization
+  + HDF5? https://support.hdfgroup.org/HDF5/doc/cpplus_RM/examples.html
+  + header-only HDF5 wrapper https://github.com/BlueBrain/HighFive
++ try mnist with TensorDataset and DatasetIterator in `ATen/src/data`
+
+
+## test
+
+``` console
+# if you do not have Boost >= 1.65.0
+make test
+
+# with Boost.StackTrace for better error messages
+make USE_BOOST=true test
+```
+
+## ATen installation guide
 
 see the pytorch's instruction
 
@@ -38,9 +64,10 @@ export LD_LIBARRY_PATH=$ATEN_ROOT/lib64/$LD_LIBARARY_PATH
 TODO: do not build by yourself. use anaconda installed libTH*.so
 (e.g., anaconda3/envs/dnn/lib/python3.6/site-packages/torch/lib )
 
-### an encounted error
+### known error
 
-patch this if you failed to build `lib/THC/generic/THCTensorMathPairwise.cu`
+build again without `-j4` or patch this if you failed to build `lib/THC/generic/THCTensorMathPairwise.cu`
+
 
 ``` diff
 diff --git a/lib/THC/generic/THCTensorMathPairwise.cu b/lib/THC/generic/THCTensorMathPairwise.cu

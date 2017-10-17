@@ -1,7 +1,7 @@
 INCPATH := -I$(ATEN_ROOT)/include -I..
 LIBPATH := -L$(ATEN_ROOT)/lib
 LIBS := -lATen -lTH -lTHC -lTHS -lTHCS -lTHNN -lTHCUNN
-CXX_FLAGS := -std=c++14 -g -Wall -Wextra
+CXX_FLAGS := -std=c++14 -g -Wall -Wextra -D_GLIBCXX_DEBUG
 
 ifdef USE_BOOST
 BOOST_LIB := -ldl -lboost_stacktrace_addr2line

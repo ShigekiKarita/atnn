@@ -133,6 +133,22 @@ namespace atnn {
         }
     }
 
+    struct ModuleSet : atnn::ModuleBase {
+        std::vector<atnn::ModulePtr> modules;
+
+        void toBackend(at::Backend b) override {
+            for (auto& m: this->modules) {
+                m->toBackend(b);
+            }
+        }
+
+        virtual TList backward(TList grads [[gnu::unused]]) {
+            // FIXME: find better way.
+            ATNN_ASSERT_MSG(false, "never call this");
+            return {};
+        }
+    };
+
 /**
    Module stores Parameters and Variables
    for Derived::Function (static class with forward/backward functions)
