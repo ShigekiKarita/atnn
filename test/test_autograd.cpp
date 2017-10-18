@@ -41,17 +41,17 @@ struct Add : atnn::Module<Add> {
 int main(int argc, char** argv) {
     atnn::test_common(argc, argv, [](auto device) {
     {
-        at::Tensor d = device(at::kFloat).rand({3, 4});
+        at::Tensor d = device(at::kFloat).randn({3, 4});
+        at::Tensor gy = device(at::kFloat).randn({3, 4});
         auto d_clone = d.clone();
 
         auto v0 = atnn::Variable(d * 3);
         auto func = std::make_shared<Pow>(2);
         auto v1 = func->forward(v0);
         assert(atnn::allclose(v1.data(), v0.data().pow(2)));
-        v1.backward(v1.data() /2);
-
+        v1.backward(gy);
         assert(atnn::allclose(d, d_clone)); // check unchanged
-        assert(atnn::allclose(v1.grad(), v1.data()/2));
+        assert(atnn::allclose(v1.grad(), gy));
         assert(atnn::allclose(v0.grad(), v1.grad() * v0.data() * 2));
         auto prev_g1 = v1.grad().clone();
         auto prev_g0 = v0.grad().clone();
@@ -63,13 +63,17 @@ int main(int argc, char** argv) {
         assert(atnn::is_empty(v0.grad()));
         assert(atnn::is_empty(v1.grad()));
 
-        v2.backward(d);
+        v2.backward(gy);
         assert(atnn::allclose(d, d_clone)); // check unchanged
-        assert(atnn::allclose(v2.grad(), d));
-        assert(atnn::allclose(v1.grad(), d));
-        assert(atnn::allclose(v0.grad(), d * (2 * v0.data() + 1), 1e-6));
+        assert(atnn::allclose(v2.grad(), gy));
+        assert(atnn::allclose(v1.grad(), gy));
+        assert(atnn::allclose(v0.grad(), gy * (2 * v0.data() + 1), 1e-6));
 
-        // TODO: test w/o clear grads
+        auto f = [=](auto x) { return func->forward(x[0]); };
+        atnn::grad_check(f, {v0}, {gy});
+
+        auto f1 = [=](auto x) { return add->forward(x[0], func->forward(x[0])); };
+        atnn::grad_check(f1, {v0}, {gy});
     }
 
     for (auto device : {at::CPU, at::CUDA})

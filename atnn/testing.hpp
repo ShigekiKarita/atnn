@@ -66,11 +66,14 @@ namespace atnn {
         return !t.defined() || t.dim() == 0;
     }
 
-    template <typename dtype=float>
-    bool allclose(at::Tensor actual, at::Tensor desired, float rtol=1e-7, dtype atol=0) {
+    static bool allclose(at::Tensor actual, at::Tensor desired, float rtol=1e-7, float atol=0) {
         ATNN_ASSERT(!atnn::is_empty(actual));
         ATNN_ASSERT(!atnn::is_empty(desired));
-        return ((actual - desired).abs() <= desired.abs() * rtol + atol).all();
+        auto t = ((actual - desired).abs() <= desired.abs() * rtol + atol);
+        auto ok = t.all();
+        if (!ok) std::cerr << "error: " << t.sum().toDouble() / t.view(-1).size(0) << " ("
+                           << t.sum() << "/" << t.view(-1).size(0) << ")" << std::endl;
+        return ok;
     }
 
     inline static auto to_tensor(at::IntList a) {
@@ -109,5 +112,4 @@ namespace atnn {
         }
         std::cout << std::endl;
     }
-
 } // namespace atnn

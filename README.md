@@ -7,7 +7,7 @@ computational graph library for [ATEN](https://github.com/zdevito/ATen)
 + computational graph
   + support RNN and multiple backwards
 + gradient check utility
-  + check Conv2d (in `test/test_nn.cpp`)
+  + check Conv2d (in `test/test_nn.cpp`) -> DONE
   + check RNN
 + optimizers
   + add `std::vector<Variable> Module<Impl>.parameters` to track trainable variables
@@ -16,7 +16,8 @@ computational graph library for [ATEN](https://github.com/zdevito/ATen)
   + HDF5? https://support.hdfgroup.org/HDF5/doc/cpplus_RM/examples.html
   + header-only HDF5 wrapper https://github.com/BlueBrain/HighFive
 + try mnist with TensorDataset and DatasetIterator in `ATen/src/data`
-
++ CUDNN support
+  + use pytorch functions https://github.com/pytorch/pytorch/blob/master/torch/csrc/cudnn/Conv.h
 
 ## test
 
