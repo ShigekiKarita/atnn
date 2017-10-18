@@ -96,7 +96,7 @@ namespace atnn {
 
     template <typename F>
     void test_common(int argc [[gnu::unused]], char** argv, F proc, bool cpu_only=false) {
-        std::cout << argv[0] << std::flush;
+        std::cout << argv[0]; // << std::flush;
         for (auto device: {at::CPU, at::CUDA}){
             if (cpu_only && device == at::CPU) continue;
             auto start_time = std::chrono::high_resolution_clock::now();
@@ -105,7 +105,7 @@ namespace atnn {
             auto elapsed = 1e-9 * std::chrono::duration_cast<std::chrono::nanoseconds>(
                 end_time - start_time).count();
             std::cout << ", "<< at::toString(device(at::kFloat).backend())
-                      << ": " << elapsed << " sec" << std::flush;
+                      << ": " << elapsed << " sec"; //  << std::flush;
         }
         std::cout << std::endl;
     }

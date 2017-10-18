@@ -4,6 +4,10 @@
 #include <vector>
 #include <memory>
 #include <iostream>
+#include <set>
+#include <unordered_set>
+#include <unordered_map>
+#include <queue>
 
 #include <ATen/ATen.h>
 
@@ -23,22 +27,47 @@ namespace atnn {
 
     struct VariableImpl {
         at::Tensor data, grad;
-        bool train = true;
-        VariableImpl(at::Tensor data, bool train) : data(data), train(train) {}
+        VariableImpl(at::Tensor data) : data(data) {}
     };
 
     using ModulePtr = std::shared_ptr<ModuleBase>;
 
     struct Variable {
+        bool train = true;
         std::shared_ptr<VariableImpl> ptr;
         ModulePtr module;
-        Variable() {
-            this->ptr = std::make_shared<VariableImpl>(at::Tensor{}, true);
+
+        struct Hash {
+            size_t operator()(const Variable& v) const {
+                return reinterpret_cast<size_t>(v.ptr.get()) / sizeof(VariableImpl);
+            }
+        };
+
+        struct Equal {
+            bool operator()(const Variable& a, const Variable& b) const {
+                return b.ptr.get() == a.ptr.get();
+            }
+        };
+
+        bool operator==(const Variable& that) const {
+            return Equal()(*this, that);
         }
 
-        Variable(at::Tensor data, bool train=true) {
-            this->ptr = std::make_shared<VariableImpl>(data, train);
+        bool operator!=(const Variable& that) const {
+            return !Equal()(*this, that);
         }
+
+        using Set = std::unordered_set<Variable, Hash, Equal>;
+
+        template <typename Value>
+        using Map = std::unordered_map<Variable, Value, Hash, Equal>;
+
+        Variable() {}
+
+        Variable(at::Tensor data, bool train=true)
+            : train(train), ptr(std::make_shared<VariableImpl>(data)) {}
+
+        Variable& operator=(const Variable&) = default;
 
         auto data() const {
             return this->ptr->data;
@@ -46,10 +75,6 @@ namespace atnn {
 
         auto grad() const {
             return this->ptr->grad;
-        }
-
-        auto train() const {
-            return this->ptr->train;
         }
 
         auto sizes() const {
@@ -108,6 +133,7 @@ namespace atnn {
         }
     };
 
+    
 
     std::ostream& operator<<(std::ostream &strm, const Variable &v) {
         return strm << "Variable(\n"
@@ -201,7 +227,7 @@ namespace atnn {
         void save_for_backward(TList tensors){
             bool train = true;
             for (auto&& v: this->vargs) {
-                train &= v.train();
+                train &= v.train;
                 if (!train) return;
             }
             this->saved_tensors = tensors;
@@ -224,3 +250,5 @@ namespace atnn {
     };
 
 } // namespace atnn
+
+

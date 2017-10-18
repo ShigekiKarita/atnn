@@ -31,6 +31,9 @@ int main(int argc, char** argv) {
 
         atnn::Variable y, z;
         std::tie(y, z) = net(x);
+        // auto out = net(x);
+        // auto y = std::get<0>(out);
+        // auto z = std::get<1>(out);
         assert((z.data() >= 0.0).all());
         assert((z.data() * (z.data() != y.data()).toType(at::kFloat) == 0.0).all());
 
