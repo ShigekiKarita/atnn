@@ -19,6 +19,39 @@ computational graph library for [ATEN](https://github.com/zdevito/ATen)
 + CUDNN support
   + use pytorch functions https://github.com/pytorch/pytorch/blob/master/torch/csrc/cudnn/Conv.h
 
+
+## Concepts
+
++ Tensor: is provided by ATen and equals to Torch's Tensor.
++ Variable: owns a tape of computational graphs and Tensors as data/grad like PyTorch.
++ Function: owns `static std::array<Tensor, N> forward/backward(Context, Tensor...) const` functions without any states.
++ Module: owns some Variable as trainable parameters and modules, `std::array<Variable, M> forward(Variable...)`
+
+
+## brief algorithm of backprop
+
+forward part
+
+1. pick some input Variables `v1_1, v1_2, ...`
+2. apply a function `{t2_1, t2_2, ...} = f1.forward(v1_1.data, v1_2.data, ...)` via a module
+3. set `v2_1 = {ancestors: {1: v1_1, 2: v1_2, ...}, func: f1, arg: 1, data: t2_1}`, `v2_2 = {ancestors: {1: v1_1, 2: v1_2, ...}, func: f1, arg: 2, data: t2_2}`, ...
+
+backward part
+
+(init)
+1. pick one `Variable v1` with its known `v1.grad` (e.g., a loss is a good start because it always has `v1.grad=1`)
+2. compute all the grads `{a.grad | a in v1.ancestors} += v1.func.backward(v1.arg: v1.grad)`
+3. build `fdict = { a.func: {a.arg: a} | a in v1.ancestors }`
+
+(loop)
+1. pick functions from `fs = {f | f in fdict if fdict[f].size() == func.n_args }`
+2. exit if `fs = {}`
+3. compute all the grads again `new_vars = sum { {a.grad | a in v.ancestors } += f.backward(v.arg: v.grad) | v in fdict[f], f in fs }`
+4. update new ones `{ fdict[v.func][v.arg] = v | v in new_vars }`
+5. remove completed ones `fdict.remove(f) in fs`
+6. loop to first
+ 
+
 ## test
 
 ``` console
